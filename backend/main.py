@@ -36,13 +36,6 @@ gemini_client = genai.Client(api_key=GOOGLE_API_KEY)
 
 print("Config loaded successfully")
 
-# ── paste your existing imports and setup here ──────────────────────────────
-# from your notebook:
-#   GeminiChatClient, ExecutorChatClient, execute_ddl, get_connection
-#   classifier, translator, pre_executor, executor, self_corrector, validator
-#   run_migration()
-# ────────────────────────────────────────────────────────────────────────────
-
 # Connecting to db
 
 def get_connection():
@@ -529,13 +522,6 @@ class MigrateRequest(BaseModel):
 
 
 async def migration_stream(sql: str, max_retries: int):
-    """
-    Runs the pipeline and yields Server-Sent Events so the React UI
-    can show each step in real time as it completes.
-
-    Event shape:  data: {"step": <int>, "label": <str>, "content": <str>, "status": <str>}
-    status values: "running" | "ok" | "error" | "done"
-    """
 
     def emit(step: int, label: str, content: str, status: str = "ok") -> str:
         payload = json.dumps({
@@ -546,7 +532,7 @@ async def migration_stream(sql: str, max_retries: int):
         })
         return f"data: {payload}\n\n"
 
-    # ── Step 1: Classify ─────────────────────────────────────────────────────
+    # Step 1: Classify 
     yield emit(1, "Classifier", "Detecting object type…", "running")
     try:
         result   = await classifier.run(task=sql)
@@ -565,7 +551,7 @@ async def migration_stream(sql: str, max_retries: int):
         yield emit(1, "Classifier", f"Classification failed: {e}", "error")
         return
 
-    # ── Step 2: Translate ────────────────────────────────────────────────────
+    #Step 2: Translate 
     yield emit(2, "Translator", f"Translating {obj_type}…", "running")
     try:
         result  = await translator.run(task=f"{type_tag}\n\n{sql}")
@@ -575,7 +561,7 @@ async def migration_stream(sql: str, max_retries: int):
         yield emit(2, "Translator", f"Translation failed: {e}", "error")
         return
 
-    # ── Step 3: Pre-executor cleanup ─────────────────────────────────────────
+    #Step 3: Pre-executor
     yield emit(3, "Pre-Executor", "Generating idempotent DROP prefix…", "running")
     try:
         result           = await pre_executor.run(task=f"{type_tag}\n\n{pg_code}")
@@ -587,7 +573,7 @@ async def migration_stream(sql: str, max_retries: int):
 
     current_code = pg_code_with_drops
 
-    # ── Step 4+5: Execute with self-correction loop ──────────────────────────
+    # Step 4+5: Execute with self-correction loop 
     for attempt in range(1, max_retries + 1):
         yield emit(4, "Executor", f"Executing (attempt {attempt}/{max_retries})…", "running")
         try:
@@ -624,7 +610,7 @@ async def migration_stream(sql: str, max_retries: int):
             yield emit(5, "SelfCorrector", f"SelfCorrector error: {e}", "error")
             return
 
-    # ── Step 6: Validate ─────────────────────────────────────────────────────
+    # Step 6: Validate 
     yield emit(6, "Validator", "Validating…", "running")
     try:
         result     = await validator.run(task=f"{type_tag}\n\n{current_code}")
@@ -670,7 +656,7 @@ async def migrate(req: MigrateRequest):
         media_type="text/event-stream",
         headers={
             "Cache-Control":  "no-cache",
-            "X-Accel-Buffering": "no",      # nginx: disable buffering
+            "X-Accel-Buffering": "no",      
         },
     )
 

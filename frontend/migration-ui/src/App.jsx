@@ -214,8 +214,8 @@ function MigrationMessage({ steps, finalSql, failed }) {
           fontSize: "13px",
           color: "#f87171",
         }}>
-          <span style={{ marginRight: "8px" }}>⚠️</span>
-          Migration failed — max retries reached or validation could not be resolved.
+          <span style={{ marginRight: "8px" }}></span>
+          Migration failed - max retries reached or validation could not be resolved.
         </div>
       )}
     </div>
@@ -543,7 +543,7 @@ export default function App() {
                     SQL Server to PostgreSQL
                   </div>
                   <div style={{ fontSize: "15px", color: "#64748b", marginBottom: "32px", maxWidth: "450px" }}>
-                    Paste your SQL Server DDL below and let the pipeline handle the migration
+                    Paste the SQL DDL below and the pipeline will handle the complete migration process
                   </div>
                   <div style={{
                     display: "flex",
@@ -613,7 +613,7 @@ export default function App() {
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Paste your SQL Server DDL here... (⌘/Ctrl + Enter to migrate)"
+                  placeholder="Paste the SQL DDL..."
                   disabled={migrating}
                   rows={3}
                   style={{
@@ -663,7 +663,7 @@ export default function App() {
                       Migrating
                     </>
                   ) : (
-                    "→ Migrate"
+                    "Migrate"
                   )}
                 </button>
               </div>
@@ -675,7 +675,7 @@ export default function App() {
                 color: "#334155",
                 padding: "0 4px",
               }}>
-                <span>Supports: CREATE TABLE, PROCEDURE, FUNCTION, TRIGGER, VIEW</span>
+                <span>Supports Objects as of now: TABLES, PROCEDURES, FUNCTIONS, TRIGGERS, VIEWS</span>
               </div>
             </div>
           </div>
