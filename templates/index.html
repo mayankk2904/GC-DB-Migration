@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DB Agents — SQL Migration</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #f4f6f9;
+      font-family: Arial, sans-serif;
+      color: #222;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: white;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 { font-size: 18px; font-weight: bold; }
+    header span { font-size: 13px; color: #aaa; }
+
+    main {
+      flex: 1;
+      max-width: 1200px;
+      width: 100%;
+      margin: 32px auto;
+      padding: 0 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .topbar h2 { font-size: 18px; font-weight: 600; color: #333; }
+
+    .btn-migrate {
+      background: #16a34a;
+      color: white;
+      border: none;
+      padding: 10px 28px;
+      font-size: 14px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .btn-migrate:hover { background: #15803d; }
+    .btn-migrate:disabled { background: #aaa; cursor: not-allowed; }
+
+    .editors {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .panel { display: flex; flex-direction: column; gap: 8px; }
+
+    .panel label { font-size: 13px; font-weight: 600; color: #555; }
+
+    textarea, .output-box {
+      width: 100%;
+      min-height: 360px;
+      background: white;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      resize: vertical;
+      outline: none;
+      color: #111;
+    }
+
+    textarea:focus { border-color: #2563eb; }
+
+    .output-box {
+      white-space: pre-wrap;
+      overflow-y: auto;
+      color: #888;
+    }
+
+    .output-box.success { border-color: #16a34a; color: #111; }
+    .output-box.error   { border-color: #dc2626; color: #dc2626; }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: #666;
+    }
+
+    .status-badge {
+      display: none;
+      padding: 3px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .status-badge.running { display: inline-block; background: #dbeafe; color: #1d4ed8; }
+    .status-badge.success { display: inline-block; background: #dcfce7; color: #16a34a; }
+    .status-badge.error   { display: inline-block; background: #fee2e2; color: #dc2626; }
+
+    .spinner {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .log-section {
+      display: none;
+      background: #1e1e1e;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .log-section.visible { display: block; }
+
+    .log-title {
+      padding: 10px 16px;
+      background: #2d2d2d;
+      color: #aaa;
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 0.05em;
+    }
+
+    .log-body {
+      padding: 16px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #ccc;
+      line-height: 1.8;
+      white-space: pre-wrap;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    .log-body .step { color: #60a5fa; }
+    .log-body .ok   { color: #4ade80; }
+    .log-body .fail { color: #f87171; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>DB Agents — SQL Migration Tool</h1>
+  <span>SQL Server → PostgreSQL</span>
+</header>
+
+<main>
+
+  <div class="topbar">
+    <h2>Paste your SQL Server DDL below and click Migrate</h2>
+    <button class="btn-migrate" id="migrateBtn" onclick="runMigration()">Migrate →</button>
+  </div>
+
+  <div class="editors">
+    <div class="panel">
+      <label>Input — SQL Server DDL</label>
+      <textarea id="sqlInput" spellcheck="false" placeholder="Paste SQL Server DDL here..."></textarea>
+    </div>
+    <div class="panel">
+      <label>Output — PostgreSQL DDL</label>
+      <div class="output-box" id="outputBox">Output will appear here after migration...</div>
+    </div>
+  </div>
+
+  <div class="status-row">
+    <div class="status-badge" id="statusBadge">
+      <span class="spinner" id="spinner" style="display:none"></span>
+      <span id="statusText"></span>
+    </div>
+    <span id="statusMeta"></span>
+  </div>
+
+  <div class="log-section" id="logSection">
+    <div class="log-title">PIPELINE LOGS</div>
+    <div class="log-body" id="logBody"></div>
+  </div>
+
+</main>
+
+<script>
+  async function runMigration() {
+    const sql = document.getElementById('sqlInput').value.trim();
+    if (!sql) return;
+
+    const btn = document.getElementById('migrateBtn');
+    btn.disabled = true;
+    setStatus('running', 'Running pipeline...');
+    document.getElementById('outputBox').className = 'output-box';
+    document.getElementById('outputBox').textContent = 'Migrating...';
+    document.getElementById('logSection').classList.remove('visible');
+    const t0 = Date.now();
+
+    try {
+      const res = await fetch('/migrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sql })
+      });
+
+      const data = await res.json();
+      const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
+
+      if (data.success) {
+        const output = data.result || 'Migration executed successfully (check logs for details)';
+        document.getElementById('outputBox').className = 'output-box success';
+        document.getElementById('outputBox').textContent = output;
+        setStatus('success', 'Done in ' + elapsed + 's');
+      } else {
+        document.getElementById('outputBox').className = 'output-box error';
+        document.getElementById('outputBox').textContent = data.error || 'Migration failed.';
+        setStatus('error', 'Failed after ' + elapsed + 's');
+      }
+
+      if (data.logs) showLogs(data.logs);
+
+    } catch (err) {
+      document.getElementById('outputBox').className = 'output-box error';
+      document.getElementById('outputBox').textContent = 'Network error: ' + err.message;
+      setStatus('error', '');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function setStatus(state, meta) {
+    const badge  = document.getElementById('statusBadge');
+    const txt    = document.getElementById('statusText');
+    const spin   = document.getElementById('spinner');
+    const metaEl = document.getElementById('statusMeta');
+
+    badge.className = 'status-badge ' + state;
+    metaEl.textContent = meta || '';
+
+    if (state === 'running') {
+      spin.style.display = 'inline-block';
+      txt.textContent = 'Running...';
+    } else if (state === 'success') {
+      spin.style.display = 'none';
+      txt.textContent = 'Complete';
+    } else if (state === 'error') {
+      spin.style.display = 'none';
+      txt.textContent = 'Failed';
+    }
+  }
+
+  function showLogs(raw) {
+    const section = document.getElementById('logSection');
+    const body    = document.getElementById('logBody');
+    section.classList.add('visible');
+
+    const colored = raw.split('\n').map(line => {
+      if (line.startsWith('[') || line.includes('==='))
+        return '<span class="step">' + esc(line) + '</span>';
+      if (line.includes('SUCCESS') || line.includes('COMPLETE') || line.includes('VALID'))
+        return '<span class="ok">' + esc(line) + '</span>';
+      if (line.includes('ERROR') || line.includes('FAILED') || line.includes('INVALID'))
+        return '<span class="fail">' + esc(line) + '</span>';
+      return esc(line);
+    }).join('\n');
+
+    body.innerHTML = colored;
+  }
+
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
+</body>
+</html>
